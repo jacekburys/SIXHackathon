@@ -2,17 +2,31 @@ package com.wishlist.wishlist;
 
 import android.app.Activity;
 import android.content.Intent;
+import android.content.pm.PackageInfo;
+import android.content.pm.PackageManager;
+import android.content.pm.Signature;
 import android.os.Bundle;
+import android.util.Base64;
+import android.util.Log;
 import android.view.Menu;
 import android.view.MenuItem;
 
+import com.facebook.AccessToken;
 import com.facebook.CallbackManager;
 import com.facebook.FacebookCallback;
 import com.facebook.FacebookException;
 import com.facebook.FacebookSdk;
+import com.facebook.Profile;
 import com.facebook.appevents.AppEventsLogger;
+import com.facebook.login.LoginManager;
 import com.facebook.login.LoginResult;
 import com.facebook.login.widget.LoginButton;
+
+import org.json.JSONException;
+import org.json.JSONObject;
+
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 
 
 public class LoginActivity extends Activity {
@@ -24,6 +38,7 @@ public class LoginActivity extends Activity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
+        DataManager.getInstance().init(getApplicationContext());
         FacebookSdk.sdkInitialize(getApplicationContext());
 
         setContentView(R.layout.activity_login);
@@ -31,6 +46,21 @@ public class LoginActivity extends Activity {
         loginButton = (LoginButton)findViewById(R.id.login_button);
 
         callbackManager = CallbackManager.Factory.create();
+
+
+        try {
+            PackageInfo info = getPackageManager().getPackageInfo(
+                    "com.grouptravel.grouptravel",
+                    PackageManager.GET_SIGNATURES);
+            for (Signature signature : info.signatures) {
+                MessageDigest md = MessageDigest.getInstance("SHA");
+                md.update(signature.toByteArray());
+                Log.d("KeyHash:", Base64.encodeToString(md.digest(), Base64.DEFAULT));
+            }
+        } catch (PackageManager.NameNotFoundException e) {
+        } catch (NoSuchAlgorithmException e) {
+        }
+
 
         loginButton.registerCallback(callbackManager, new FacebookCallback<LoginResult>() {
             @Override
@@ -40,17 +70,56 @@ public class LoginActivity extends Activity {
 
             @Override
             public void onCancel() {
-
             }
 
             @Override
             public void onError(FacebookException e) {
+            }
+        });
 
+        LoginManager.getInstance().registerCallback(callbackManager, new FacebookCallback<LoginResult>() {
+            @Override
+            public void onSuccess(final LoginResult loginResult) {
+                Log.d("Login", "Success");
+                JSONObject callback_information = new JSONObject();
+
+                AccessToken at = loginResult.getAccessToken();
+                try {
+                    callback_information.put("atsource", at.getSource());
+                    callback_information.put("attoken", at.getToken());
+                    callback_information.put("atloginresult",
+                            loginResult.toString());
+                } catch (JSONException e) {
+                    e.printStackTrace();
+                }
+
+                DataManager.getInstance().createNewSession(callback_information);
+                runOnUiThread(new Runnable() {
+                    @Override
+                    public void run() {
+                        Log.d("userId", Profile.getCurrentProfile().getId());
+                        Log.d("loginResult", loginResult.getAccessToken().getToken().toString());
+                        goToMain();
+                    }
+                });
+            }
+
+            @Override
+            public void onCancel() {
+                Log.d("Login", "Cancel");
+            }
+
+            @Override
+            public void onError(FacebookException e) {
+                Log.d("Login", "Error");
             }
         });
     }
 
-
+    private void goToMain() {
+        Intent i = new Intent(getApplicationContext(), MainActivity.class);
+        startActivity(i);
+    }
 
     @Override
     protected void onResume() {
@@ -62,6 +131,12 @@ public class LoginActivity extends Activity {
     protected void onPause() {
         super.onPause();
         AppEventsLogger.deactivateApp(this);
+    }
+
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        callbackManager.onActivityResult(requestCode, resultCode, data);
     }
 
 ///////////////////////////////////////////////////////////////////////////
