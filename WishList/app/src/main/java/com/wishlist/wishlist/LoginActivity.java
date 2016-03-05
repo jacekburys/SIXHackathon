@@ -33,15 +33,17 @@ public class LoginActivity extends Activity {
 
     private LoginButton loginButton;
     private CallbackManager callbackManager;
+    private LoginActivity loginActivity = this;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
-        DataManager.getInstance().init(getApplicationContext());
         FacebookSdk.sdkInitialize(getApplicationContext());
 
         setContentView(R.layout.activity_login);
+
+        DataManager.getInstance().init(getApplicationContext());
 
         loginButton = (LoginButton)findViewById(R.id.login_button);
 
@@ -50,7 +52,7 @@ public class LoginActivity extends Activity {
 
         try {
             PackageInfo info = getPackageManager().getPackageInfo(
-                    "com.grouptravel.grouptravel",
+                    "com.wishlist.wishlist",
                     PackageManager.GET_SIGNATURES);
             for (Signature signature : info.signatures) {
                 MessageDigest md = MessageDigest.getInstance("SHA");
@@ -85,23 +87,24 @@ public class LoginActivity extends Activity {
 
                 AccessToken at = loginResult.getAccessToken();
                 try {
-                    callback_information.put("atsource", at.getSource());
-                    callback_information.put("attoken", at.getToken());
-                    callback_information.put("atloginresult",
-                            loginResult.toString());
+                    callback_information.put("facebook_id", at.getUserId());
                 } catch (JSONException e) {
                     e.printStackTrace();
                 }
 
-                DataManager.getInstance().createNewSession(callback_information);
+                final JSONObject temp = callback_information;
+
                 runOnUiThread(new Runnable() {
                     @Override
                     public void run() {
                         Log.d("userId", Profile.getCurrentProfile().getId());
                         Log.d("loginResult", loginResult.getAccessToken().getToken().toString());
-                        goToMain();
+                        DataManager.getInstance().createNewSession(temp, loginActivity);
+
                     }
                 });
+
+
             }
 
             @Override
@@ -116,7 +119,7 @@ public class LoginActivity extends Activity {
         });
     }
 
-    private void goToMain() {
+    public void goToMain() {
         Intent i = new Intent(getApplicationContext(), MainActivity.class);
         startActivity(i);
     }

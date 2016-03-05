@@ -14,12 +14,18 @@
             android:layout_width="match_parent"
             android:layout_height="match_parent">
 
-            <TextView
-                android:layout_width="wrap_content"
+            <SearchView
+                android:layout_width="fill_parent"
                 android:layout_height="wrap_content"
-                android:textAppearance="?android:attr/textAppearanceLarge"
-                android:text="WishList"
-                android:id="@+id/textView3" />
+                android:id="@+id/searchView" />
+
+            <ListView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:id="@+id/listViewWishlist"
+                android:layout_gravity="center_horizontal" />
+
+
         </LinearLayout>
 
         <LinearLayout
