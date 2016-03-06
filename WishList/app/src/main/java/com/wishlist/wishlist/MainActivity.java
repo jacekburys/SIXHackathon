@@ -1,22 +1,30 @@
 package com.wishlist.wishlist;
 
 import android.app.Activity;
+import android.app.SearchManager;
 import android.content.Context;
+import android.database.Cursor;
+import android.database.MatrixCursor;
+import android.os.Build;
 import android.os.Bundle;
 import android.util.Log;
 import android.view.LayoutInflater;
+import android.view.Menu;
 import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.ArrayAdapter;
 import android.widget.Button;
 import android.widget.CheckBox;
+import android.widget.CursorAdapter;
 import android.widget.ListView;
+import android.widget.SearchView;
 import android.widget.TextView;
 import android.widget.Toast;
 import android.widget.ViewFlipper;
 
 import java.util.ArrayList;
+import java.util.List;
 
 /**
  * Created by jacek on 05/03/16.
@@ -27,9 +35,13 @@ public class MainActivity extends Activity {
     private float lastX;
 
     MyCustomAdapter dataAdapter = null;
+    private Menu menu;
 
     private ListView listView;
     private ArrayList<Product> products;
+
+    private MainActivity mainActivity;
+    private long lastSearchTime;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -37,7 +49,10 @@ public class MainActivity extends Activity {
         setContentView(R.layout.activity_main);
         viewFlipper = (ViewFlipper) findViewById(R.id.viewFlipper);
 
+        this.mainActivity = this;
+
         DataManager.getInstance().getWishList(this);
+        this.lastSearchTime = System.currentTimeMillis();
     }
 
 
@@ -179,4 +194,125 @@ public class MainActivity extends Activity {
         }
         return false;
     }
+
+    @Override
+    public boolean onCreateOptionsMenu(Menu menu) {
+        getMenuInflater().inflate(R.menu.example, menu);
+        this.menu = menu;
+        if(Build.VERSION.SDK_INT >= Build.VERSION_CODES.HONEYCOMB) {
+            final SearchManager manager = (SearchManager) getSystemService(Context.SEARCH_SERVICE);
+            final SearchView search = (SearchView) menu.findItem(R.id.search).getActionView();
+            search.setSearchableInfo(manager.getSearchableInfo(getComponentName()));
+            search.setIconifiedByDefault(false);
+            search.setFocusable(true);
+            search.setOnQueryTextListener(new SearchView.OnQueryTextListener() {
+
+                @Override
+                public boolean onQueryTextSubmit(String query) {
+                    long timeDiff = (System.currentTimeMillis() - lastSearchTime) / 1000;
+                    //if(timeDiff > 3) {
+                    DataManager.updateSearch(mainActivity, query);
+                    //}
+
+                    return true;
+                }
+
+                @Override
+                public boolean onQueryTextChange(String query) {
+
+
+                    return true;
+                }
+
+            });
+
+
+        }
+
+        return true;
+    }
+
+
+    public void loadHistory(ArrayList<String> items) {
+
+        lastSearchTime = System.currentTimeMillis();
+
+        if(Build.VERSION.SDK_INT >= Build.VERSION_CODES.HONEYCOMB) {
+
+            // Cursor
+            String[] columns = new String[] { "_id", "text" };
+            Object[] temp = new Object[] { 0, "default" };
+
+            MatrixCursor cursor = new MatrixCursor(columns);
+
+            for(int i = 0; i < items.size(); i++) {
+
+                temp[0] = i;
+                temp[1] = items.get(i);
+                cursor.addRow(temp);
+
+            }
+
+            // SearchView
+            SearchManager manager = (SearchManager) getSystemService(Context.SEARCH_SERVICE);
+
+            final SearchView search = (SearchView) menu.findItem(R.id.search).getActionView();
+
+            search.setSuggestionsAdapter(new ExampleAdapter(this, cursor, items));
+            search.requestFocusFromTouch();
+            search.dispatchSetActivated(true);
+            search.requestFocus();
+            search.callOnClick();
+            search.onActionViewExpanded();
+            
+        }
+
+    }
+
+
+
+
+    public class ExampleAdapter extends CursorAdapter {
+
+        private List<String> items;
+
+        private TextView text;
+
+        public ExampleAdapter(Context context, Cursor cursor, List<String> items) {
+
+            super(context, cursor, false);
+
+            this.items = items;
+
+        }
+
+        @Override
+        public void bindView(View view, Context context, Cursor cursor) {
+
+            text.setText(items.get(cursor.getPosition()));
+
+        }
+
+        @Override
+        public View newView(Context context, Cursor cursor, ViewGroup parent) {
+
+            LayoutInflater inflater = (LayoutInflater) context.getSystemService(Context.LAYOUT_INFLATER_SERVICE);
+
+            View view = inflater.inflate(R.layout.search_item, parent, false);
+
+            text = (TextView) view.findViewById(R.id.search_item);
+
+            view.setOnClickListener(new View.OnClickListener() {
+                @Override
+                public void onClick(View v) {
+
+                }
+            });
+
+            return view;
+
+        }
+
+    }
+
 }

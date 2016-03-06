@@ -26,7 +26,7 @@ public class DataManager {
     private final static DataManager instance = new DataManager();
 
     private Context context;
-    private RequestQueue requestQueue;
+    private static RequestQueue requestQueue;
 
     private DataManager() {}
 
@@ -94,6 +94,54 @@ public class DataManager {
 
 
                         mainActivity.displayProducts(products);
+                    }
+                }, new Response.ErrorListener() {
+            @Override
+            public void onErrorResponse(VolleyError error) {
+                VolleyLog.e("Error: ", error.getMessage());
+            }
+        });
+
+        requestQueue.add(req);
+    }
+
+    public static void updateSearch(final MainActivity mainActivity, String query) {
+
+
+
+        JSONObject info = new JSONObject();
+        try {
+            info.put("index", "All");
+            info.put("query", query);
+        } catch (JSONException e) {
+            e.printStackTrace();
+        }
+
+
+        final String URL = "https://freetrade.herokuapp.com/search";
+        JsonObjectRequest req = new JsonObjectRequest(Request.Method.POST, URL, info,
+                new Response.Listener<JSONObject>() {
+                    @Override
+                    public void onResponse(JSONObject response) {
+                        Log.d("search", response.toString());
+                        ArrayList<String> itemsList = new ArrayList<>();
+
+                        JSONArray items = null;
+                        try {
+                            items = response.getJSONArray("items");
+                            for(int i=0; i<items.length(); i++){
+                                JSONObject obj = items.getJSONObject(i);
+                                String asin = obj.getString("ASIN");
+                                String title = obj.getString("title");
+                                Log.d("item", asin + " - " + title);
+                                itemsList.add(title);
+                            }
+                        } catch (JSONException e) {
+                            e.printStackTrace();
+                        }
+
+
+                        mainActivity.loadHistory(itemsList);
                     }
                 }, new Response.ErrorListener() {
             @Override
