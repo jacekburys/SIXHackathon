@@ -1,10 +1,18 @@
 package com.wishlist.wishlist;
 
+import android.app.ActionBar;
 import android.app.Activity;
+import android.app.AlertDialog;
+import android.app.DatePickerDialog;
 import android.app.SearchManager;
 import android.content.Context;
+import android.content.DialogInterface;
+import android.content.Intent;
 import android.database.Cursor;
 import android.database.MatrixCursor;
+import android.graphics.Color;
+import android.graphics.drawable.ColorDrawable;
+import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.util.Log;
@@ -17,13 +25,16 @@ import android.widget.ArrayAdapter;
 import android.widget.Button;
 import android.widget.CheckBox;
 import android.widget.CursorAdapter;
+import android.widget.DatePicker;
 import android.widget.ListView;
+import android.widget.NumberPicker;
 import android.widget.SearchView;
 import android.widget.TextView;
 import android.widget.Toast;
 import android.widget.ViewFlipper;
 
 import java.util.ArrayList;
+import java.util.GregorianCalendar;
 import java.util.List;
 
 /**
@@ -35,10 +46,13 @@ public class MainActivity extends Activity {
     private float lastX;
 
     MyCustomAdapter dataAdapter = null;
+    MyDiscountsAdapter discountsAdapter = null;
+
     private Menu menu;
 
     private ListView listView;
     private ArrayList<Product> products;
+    private ArrayList<DiscountedProduct> discounts;
 
     private MainActivity mainActivity;
     private long lastSearchTime;
@@ -53,12 +67,20 @@ public class MainActivity extends Activity {
 
         DataManager.getInstance().getWishList(this);
         this.lastSearchTime = System.currentTimeMillis();
+
+        ActionBar bar = getActionBar();
+        bar.setBackgroundDrawable(new ColorDrawable(Color.parseColor("#8a9cd9")));
     }
 
 
     public void displayProducts(ArrayList<Product> products) {
         this.products = products;
         setAdapter(products);
+    }
+
+    public void displayDiscounts(ArrayList<DiscountedProduct> discounts) {
+        this.discounts = discounts;
+        setDiscountsAdapter(discounts);
     }
 
     private void setAdapter(ArrayList<Product> products) {
@@ -71,6 +93,15 @@ public class MainActivity extends Activity {
         listView.setAdapter(dataAdapter);
     }
 
+    private void setDiscountsAdapter(ArrayList<DiscountedProduct> discounts) {
+        //create an ArrayAdaptar from the String Array
+        this.discounts = discounts;
+        discountsAdapter = new MyDiscountsAdapter(this,
+                R.layout.product_item, discounts);
+        ListView listView = (ListView)findViewById(R.id.listDiscounts);
+        // Assign adapter to ListView
+        listView.setAdapter(discountsAdapter);
+    }
 
 
 
@@ -96,7 +127,7 @@ public class MainActivity extends Activity {
         }
 
         @Override
-        public View getView(int position, View convertView, ViewGroup parent) {
+        public View getView(final int position, View convertView, ViewGroup parent) {
 
             ViewHolder holder = null;
             Log.v("ConvertView", String.valueOf(position));
@@ -119,6 +150,7 @@ public class MainActivity extends Activity {
                         Toast.makeText(getContext().getApplicationContext(),
                                 name + " should be removed",
                                 Toast.LENGTH_LONG).show();
+                        DataManager.removeFromWishlist(mainActivity, productsList.get(position));
                     }
                 });
 
@@ -153,6 +185,65 @@ public class MainActivity extends Activity {
     }
 
 
+    private class MyDiscountsAdapter extends ArrayAdapter<DiscountedProduct> {
+
+        private ArrayList<DiscountedProduct> productsList;
+
+        public MyDiscountsAdapter(Context context, int textViewResourceId,
+                               ArrayList<DiscountedProduct> productsList) {
+            super(context, textViewResourceId, productsList);
+            this.productsList = new ArrayList<DiscountedProduct>();
+            this.productsList.addAll(productsList);
+        }
+
+        private class ViewHolder {
+            TextView name;
+            Button button;
+        }
+
+        @Override
+        public View getView(int position, View convertView, ViewGroup parent) {
+
+            ViewHolder holder = null;
+            Log.v("ConvertView", String.valueOf(position));
+
+            if (convertView == null) {
+                LayoutInflater vi = (LayoutInflater) getContext().getSystemService(
+                        Context.LAYOUT_INFLATER_SERVICE);
+                convertView = vi.inflate(R.layout.discount_item, null);
+
+                holder = new ViewHolder();
+                holder.name = (TextView) convertView.findViewById(R.id.textView);
+                holder.button = (Button) convertView.findViewById(R.id.button);
+                convertView.setTag(holder);
+
+                final String name = holder.name.getText().toString();
+                holder.button.setOnClickListener(new View.OnClickListener() {
+
+                    @Override
+                    public void onClick(View v) {
+                        Toast.makeText(getContext().getApplicationContext(),
+                                "DISCOUNT!",
+                                Toast.LENGTH_LONG).show();
+                    }
+                });
+
+            } else {
+                holder = (ViewHolder) convertView.getTag();
+            }
+
+            DiscountedProduct product = productsList.get(position);
+            holder.name.setText(product.getName());
+            holder.button.setText(String.valueOf((int)(product.getRate() * 100)) + "%");
+            //holder.name.setText(friend.getName());
+            //holder.name.setChecked(friend.isSelected());
+            //holder.name.setTag(friend);
+
+            return convertView;
+
+        }
+    }
+
     ////////////////////////////////////////////////
 
     // Using the following method, we will handle all screen swaps.
@@ -176,6 +267,7 @@ public class MainActivity extends Activity {
                     viewFlipper.setOutAnimation(this, R.anim.slide_out_to_right);
                     // Display next screen.
                     viewFlipper.showNext();
+                    menu.findItem(R.id.search).setVisible(true);
                 }
 
                 // Handling right to left screen swap.
@@ -189,6 +281,7 @@ public class MainActivity extends Activity {
                     viewFlipper.setOutAnimation(this, R.anim.slide_out_to_left);
                     // Display previous screen.
                     viewFlipper.showPrevious();
+                    menu.findItem(R.id.search).setVisible(false);
                 }
                 break;
         }
@@ -233,7 +326,7 @@ public class MainActivity extends Activity {
     }
 
 
-    public void loadHistory(ArrayList<String> items) {
+    public void loadHistory(ArrayList<Product> items) {
 
         lastSearchTime = System.currentTimeMillis();
 
@@ -259,12 +352,12 @@ public class MainActivity extends Activity {
             final SearchView search = (SearchView) menu.findItem(R.id.search).getActionView();
 
             search.setSuggestionsAdapter(new ExampleAdapter(this, cursor, items));
-            search.requestFocusFromTouch();
+            /*search.requestFocusFromTouch();
             search.dispatchSetActivated(true);
             search.requestFocus();
-            search.callOnClick();
+            search.callOnClick();*/
             search.onActionViewExpanded();
-            
+
         }
 
     }
@@ -274,11 +367,11 @@ public class MainActivity extends Activity {
 
     public class ExampleAdapter extends CursorAdapter {
 
-        private List<String> items;
+        private List<Product> items;
 
         private TextView text;
 
-        public ExampleAdapter(Context context, Cursor cursor, List<String> items) {
+        public ExampleAdapter(Context context, Cursor cursor, List<Product> items) {
 
             super(context, cursor, false);
 
@@ -289,12 +382,12 @@ public class MainActivity extends Activity {
         @Override
         public void bindView(View view, Context context, Cursor cursor) {
 
-            text.setText(items.get(cursor.getPosition()));
+            text.setText(items.get(cursor.getPosition()).getName());
 
         }
 
         @Override
-        public View newView(Context context, Cursor cursor, ViewGroup parent) {
+        public View newView(Context context, final Cursor cursor, ViewGroup parent) {
 
             LayoutInflater inflater = (LayoutInflater) context.getSystemService(Context.LAYOUT_INFLATER_SERVICE);
 
@@ -305,7 +398,7 @@ public class MainActivity extends Activity {
             view.setOnClickListener(new View.OnClickListener() {
                 @Override
                 public void onClick(View v) {
-
+                    searchItemClicked(items.get(cursor.getPosition()));
                 }
             });
 
@@ -313,6 +406,124 @@ public class MainActivity extends Activity {
 
         }
 
+        private void searchItemClicked(final Product product) {
+            AlertDialog alertDialog = new AlertDialog.Builder(mainActivity).create();
+
+            alertDialog.setTitle("TITLE");
+
+            alertDialog.setMessage("Would you like to add this to your wishlist?\n " + product.getName());
+
+            alertDialog.setButton(AlertDialog.BUTTON_NEGATIVE, "Cancel", new DialogInterface.OnClickListener() {
+
+                public void onClick(DialogInterface dialog, int id) {
+                    /*Toast.makeText(getApplicationContext(),
+                            "cancel",
+                            Toast.LENGTH_SHORT).show();*/
+                    // DO NOTHING
+                }
+            });
+
+            alertDialog.setButton(AlertDialog.BUTTON_NEUTRAL, "More", new DialogInterface.OnClickListener() {
+
+                public void onClick(DialogInterface dialog, int id) {
+                    /*Toast.makeText(getApplicationContext(),
+                            "url: "+url,
+                            Toast.LENGTH_SHORT).show();*/
+
+                    Intent i = new Intent(Intent.ACTION_VIEW);
+                    i.setData(Uri.parse(product.getUrl()));
+                    startActivity(i);
+
+                }});
+
+            alertDialog.setButton(AlertDialog.BUTTON_POSITIVE, "  OK  ", new DialogInterface.OnClickListener() {
+
+                public void onClick(DialogInterface dialog, int id) {
+                    Toast.makeText(getApplicationContext(),
+                            "ok",
+                            Toast.LENGTH_SHORT).show();
+                    //TODO : ADD TO WISHLIST
+                    getStartDate(product);
+                }});
+            alertDialog.show();
+        }
+
+    }
+
+    /// DATE pickers
+
+    public void getStartDate(final Product product) {
+
+        int year = GregorianCalendar.getInstance().get(GregorianCalendar.YEAR);
+        int month = GregorianCalendar.getInstance().get(GregorianCalendar.MONTH);;
+        final int day = GregorianCalendar.getInstance().get(GregorianCalendar.DAY_OF_MONTH);;
+
+        DatePickerDialog datePickerDialog = new DatePickerDialog(this, new DatePickerDialog.OnDateSetListener() {
+            @Override
+            public void onDateSet(DatePicker view, int year, int monthOfYear, int dayOfMonth) {
+                Log.d("startDate", year + " - " + monthOfYear + " - " + dayOfMonth);
+                String startDate = year + "-" + monthOfYear + "-" + day;
+                getEndDate(product, startDate);
+            }
+        }, year, month, day);
+        datePickerDialog.show();
+    }
+
+    public void getEndDate(final Product product, final String startDate) {
+
+        int year = GregorianCalendar.getInstance().get(GregorianCalendar.YEAR);
+        int month = GregorianCalendar.getInstance().get(GregorianCalendar.MONTH);;
+        final int day = GregorianCalendar.getInstance().get(GregorianCalendar.DAY_OF_MONTH);;
+
+        DatePickerDialog datePickerDialog = new DatePickerDialog(this, new DatePickerDialog.OnDateSetListener() {
+            @Override
+            public void onDateSet(DatePicker view, int year, int monthOfYear, int dayOfMonth) {
+                Log.d("endDate", year + " - " + monthOfYear + " - " + dayOfMonth);
+                String endDate = year + "-" + monthOfYear + "-" + day;
+                getProbability(product, startDate, endDate);
+            }
+        }, year, month, day);
+        datePickerDialog.show();
+    }
+
+    public void getProbability(final Product product, final String startDate, final String endDate) {
+        AlertDialog.Builder builder = new AlertDialog.Builder(mainActivity);
+        LayoutInflater inflater = mainActivity.getLayoutInflater();
+
+        builder.setTitle("TITLE");
+
+        builder.setMessage("How likely are you to buy this item?");
+
+        View content = inflater.inflate(R.layout.probability, null);
+
+        final NumberPicker np = (NumberPicker)content.findViewById(R.id.numberPicker);
+        np.setMinValue(0);
+        np.setMaxValue(100);
+        np.setValue(90);
+
+        builder.setView(content).
+
+        setNegativeButton("Cancel", new DialogInterface.OnClickListener() {
+
+            public void onClick(DialogInterface dialog, int id) {
+                    /*Toast.makeText(getApplicationContext(),
+                            "cancel",
+                            Toast.LENGTH_SHORT).show();*/
+                // DO NOTHING
+            }
+        }).
+
+        setPositiveButton("  OK  ", new DialogInterface.OnClickListener() {
+
+            public void onClick(DialogInterface dialog, int id) {
+                Toast.makeText(getApplicationContext(),
+                        "ok",
+                        Toast.LENGTH_SHORT).show();
+                float probability = (float)np.getValue();
+                DataManager.addToWishlist(mainActivity, product.getId(), product.getName(), product.getUrl(), startDate, endDate, probability);
+            }});
+
+        builder.create().show();
     }
 
 }

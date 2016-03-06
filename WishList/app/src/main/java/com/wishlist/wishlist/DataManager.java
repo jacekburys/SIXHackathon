@@ -60,9 +60,10 @@ public class DataManager {
         requestQueue.add(req);
     }
 
-    public void getWishList(final MainActivity mainActivity) {
+    public static void getWishList(final MainActivity mainActivity) {
 
         final ArrayList<Product> products = new ArrayList<>();
+        final ArrayList<DiscountedProduct> discountsArrList = new ArrayList<>();
 
         JSONObject info = new JSONObject();
 
@@ -72,7 +73,7 @@ public class DataManager {
             e.printStackTrace();
         }
 
-        final String URL = "https://freetrade.herokuapp.com/products";
+        final String URL = "https://freetrade.herokuapp.com/api/wishlist";
         JsonObjectRequest req = new JsonObjectRequest(Request.Method.POST, URL, info,
                 new Response.Listener<JSONObject>() {
                     @Override
@@ -81,12 +82,25 @@ public class DataManager {
 
                         try {
                             JSONArray arr = response.getJSONArray("products");
+
                             for(int i=0; i<arr.length(); i++){
                                 JSONObject obj = arr.getJSONObject(i);
                                 String id = obj.getString("id");
                                 String name = obj.getString("name");
+                                String asin = obj.getString("asin");
+
                                 Log.d("product", id + " - " + name);
-                                products.add(new Product(id, name));
+                                products.add(new Product(id, name, null, asin));
+                            }
+
+                            JSONArray discounts = response.getJSONArray("discounts");
+                            for(int i=0; i<Math.min(discounts.length(), arr.length()); i++){
+                                JSONArray temp = discounts.getJSONArray(i);
+                                if(temp.length() > 0) {
+                                    String exp = temp.getJSONObject(0).getString("expiry");
+                                    double rate = temp.getJSONObject(0).getDouble("rate");
+                                    discountsArrList.add(new DiscountedProduct(products.get(i), exp, rate));
+                                }
                             }
                         } catch (JSONException e) {
                             e.printStackTrace();
@@ -94,6 +108,7 @@ public class DataManager {
 
 
                         mainActivity.displayProducts(products);
+                        mainActivity.displayDiscounts(discountsArrList);
                     }
                 }, new Response.ErrorListener() {
             @Override
@@ -117,14 +132,14 @@ public class DataManager {
             e.printStackTrace();
         }
 
-
-        final String URL = "https://freetrade.herokuapp.com/search";
+//https://freetrade.herokuapp.com
+        final String URL = "https://freetrade.herokuapp.com/api/search";
         JsonObjectRequest req = new JsonObjectRequest(Request.Method.POST, URL, info,
                 new Response.Listener<JSONObject>() {
                     @Override
                     public void onResponse(JSONObject response) {
                         Log.d("search", response.toString());
-                        ArrayList<String> itemsList = new ArrayList<>();
+                        ArrayList<Product> itemsList = new ArrayList<>();
 
                         JSONArray items = null;
                         try {
@@ -133,8 +148,9 @@ public class DataManager {
                                 JSONObject obj = items.getJSONObject(i);
                                 String asin = obj.getString("ASIN");
                                 String title = obj.getString("title");
-                                Log.d("item", asin + " - " + title);
-                                itemsList.add(title);
+                                String url = obj.getString("url");
+                                Log.d("item", asin + " - " + title + " - " + url);
+                                itemsList.add(new Product(asin, title, url, asin));
                             }
                         } catch (JSONException e) {
                             e.printStackTrace();
@@ -142,6 +158,71 @@ public class DataManager {
 
 
                         mainActivity.loadHistory(itemsList);
+                    }
+                }, new Response.ErrorListener() {
+            @Override
+            public void onErrorResponse(VolleyError error) {
+                VolleyLog.e("Error: ", error.getMessage());
+            }
+        });
+
+        requestQueue.add(req);
+    }
+
+    public static void addToWishlist(final MainActivity mainActivity,
+                                     String asin, String name, String url,
+                                     String startDate, String endDate, float probability) {
+
+        JSONObject info = new JSONObject();
+        try {
+            info.put("facebook_id", Profile.getCurrentProfile().getId());
+            info.put("asin", asin);
+            info.put("name", name);
+            info.put("url", url);
+            info.put("start_date", startDate);
+            info.put("end_date", endDate);
+            info.put("probability", probability);
+        } catch (JSONException e) {
+            e.printStackTrace();
+        }
+
+
+        final String URL = "https://freetrade.herokuapp.com/api/wishlist/add";
+        JsonObjectRequest req = new JsonObjectRequest(Request.Method.POST, URL, info,
+                new Response.Listener<JSONObject>() {
+                    @Override
+                    public void onResponse(JSONObject response) {
+                        Log.d("wishlist_add", response.toString());
+                        getWishList(mainActivity);
+                    }
+                }, new Response.ErrorListener() {
+            @Override
+            public void onErrorResponse(VolleyError error) {
+                VolleyLog.e("Error: ", error.getMessage());
+            }
+        });
+
+        requestQueue.add(req);
+    }
+
+    public static void removeFromWishlist(final MainActivity mainActivity,
+                                     Product product) {
+
+        JSONObject info = new JSONObject();
+        try {
+            info.put("facebook_id", Profile.getCurrentProfile().getId());
+        } catch(JSONException e){
+            e.printStackTrace();
+        }
+
+
+        final String URL = "https://freetrade.herokuapp.com/api/wishlist/destroy/" + product.getId();
+        JsonObjectRequest req = new JsonObjectRequest(Request.Method.POST, URL, info,
+                new Response.Listener<JSONObject>() {
+                    @Override
+                    public void onResponse(JSONObject response) {
+                        Log.d("wishlist_remove", response.toString());
+                        getWishList(mainActivity);
                     }
                 }, new Response.ErrorListener() {
             @Override
